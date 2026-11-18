@@ -80,6 +80,11 @@
 | **12** | **Test Suite** | Created comprehensive unit tests in `tests/` covering all analyzers and pipelines. | 14/14 tests passing |
 | **13** | **Example Showcase** | Built `examples/vulnerable_repo/` with polyglot sample files demonstrating all capabilities. | Verified on real scenarios |
 | **14** | **Arena Compliance** | Generated `arena.json`, `README.md`, and `AI_LOG.md` adhering to Arena Hackathon criteria. | Submission-ready |
+| **15** | **Production Readiness & Rate Limiter** | Implemented sliding-window rate limiting on `app.py`, 429 response, and strict body size validation. | Rate limiting verified |
+| **16** | **Dockerfile Security & Hadolint** | Authored non-root production `Dockerfile` with pinned base image and non-root execution. | Hadolint compliant |
+| **17** | **Dependency Lock & Hygiene** | Pinned dependencies and generated `requirements.lock` with zero osv-scanner vulnerabilities. | Dependency hygiene resolved |
+| **18** | **CI Workflow** | Added `.github/workflows/ci.yml` running automated unit tests on GitHub Actions. | CI pipeline verified |
+| **19** | **Domain Classification Upgrade** | Expanded `classify()` categories to cover billing, technical, account, security, slop, and urgency. | 26/26 tests passing |
 
 ---
 
