@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SlopSentinel - Codebase Health & Triage Report</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --text-bright: #f0f6fc;
+            --critical: #f85149;
+            --high: #d29922;
+            --medium: #58a6ff;
+            --low: #8b949e;
+            --green: #2ea043;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 2rem; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+        h1 { color: var(--text-bright); font-size: 1.8rem; display: flex; align-items: center; gap: 0.5rem; }
+        .score-box { background: var(--surface); border: 2px solid var(--border); border-radius: 12px; padding: 1rem 1.5rem; text-align: center; }
+        .score { font-size: 2.2rem; font-weight: bold; color: #f85149; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; }
+        .stat-num { font-size: 1.8rem; font-weight: bold; color: var(--text-bright); margin-top: 0.3rem; }
+        .badge { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+        .badge.critical { background: rgba(248, 81, 73, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+        .badge.high { background: rgba(210, 153, 34, 0.2); color: var(--high); border: 1px solid var(--high); }
+        .badge.medium { background: rgba(88, 166, 255, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+        .badge.low, .badge.info { background: rgba(139, 148, 158, 0.2); color: var(--low); border: 1px solid var(--low); }
+        .badge.category { background: #21262d; color: var(--text-bright); }
+        .badge.fixable { background: rgba(46, 160, 67, 0.2); color: var(--green); border: 1px solid var(--green); }
+        .section-title { font-size: 1.4rem; color: var(--text-bright); margin: 2rem 0 1rem; display: flex; align-items: center; justify-content: space-between; }
+        .insights-list { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
+        .insight-card { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 1rem; }
+        .insight-card.critical { border-left-color: var(--critical); }
+        .insight-card.high { border-left-color: var(--high); }
+        .insight-card.medium { border-left-color: var(--medium); }
+        .insight-header { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.5rem; }
+        .insight-card h4 { color: var(--text-bright); font-size: 1.1rem; }
+        .insight-card p { margin: 0.3rem 0; font-size: 0.9rem; }
+        .insight-card .action { color: var(--green); }
+        .controls { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .filter-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+        .filter-btn:hover, .filter-btn.active { background: #21262d; border-color: var(--medium); color: var(--text-bright); }
+        .issue-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+        .issue-card.critical { border-left: 4px solid var(--critical); }
+        .issue-card.high { border-left: 4px solid var(--high); }
+        .issue-card.medium { border-left: 4px solid var(--medium); }
+        .issue-card.low { border-left: 4px solid var(--low); }
+        .card-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+        .rule-id { color: var(--low); font-size: 0.8rem; font-mono: monospace; }
+        .file-loc { font-family: monospace; color: var(--medium); font-size: 0.85rem; margin-left: auto; }
+        .issue-card h3 { color: var(--text-bright); font-size: 1.1rem; margin-bottom: 0.4rem; }
+        .issue-card .desc { font-size: 0.9rem; margin-bottom: 0.8rem; }
+        pre { background: #090d13; padding: 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin-bottom: 0.8rem; border: 1px solid #21262d; }
+        .fix-box { background: rgba(46, 160, 67, 0.1); border: 1px solid rgba(46, 160, 67, 0.3); padding: 0.8rem; border-radius: 6px; font-size: 0.85rem; color: #7ee787; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>🛡️ SlopSentinel Triage Report</h1>
+                <p style="color: var(--low); margin-top: 0.4rem;">Architecture-Agnostic Anti-Slop & Security Intelligence Agent</p>
+                <p style="font-size: 0.85rem; color: var(--low); margin-top: 0.2rem;">Generated: 2026-11-18T12:03:04.894451 | Target: C:\Users\Balaji Rapolu\OneDrive\Desktop\MyCrobo\examples\vulnerable_repo</p>
+            </div>
+            <div class="score-box">
+                <div style="font-size: 0.8rem; color: var(--low); text-transform: uppercase;">Codebase Health</div>
+                <div class="score">0.0</div>
+                <div style="font-size: 0.85rem; font-weight: bold; color: var(--text-bright);">F (Critical Vulnerabilities)</div>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div>Files Scanned</div>
+                <div class="stat-num">4</div>
+            </div>
+            <div class="stat-card">
+                <div>Lines of Code</div>
+                <div class="stat-num">82</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--critical);">Critical / High</div>
+                <div class="stat-num" style="color: var(--critical);">10</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--high);">AI Slop Issues</div>
+                <div class="stat-num" style="color: var(--high);">9</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--medium);">Coding Gaps</div>
+                <div class="stat-num" style="color: var(--medium);">4</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--green);">Auto-Fixable</div>
+                <div class="stat-num" style="color: var(--green);">15</div>
+            </div>
+        </div>
+
+        <div class="section-title">
+            <span>Executive Triage Insights</span>
+        </div>
+        <div class="insights-list">
+            
+            <div class="insight-card critical">
+                <div class="insight-header">
+                    <span class="badge critical">CRITICAL</span>
+                    <h4>Immediate Credential Exposure: 3 Secret(s) Found in Plaintext</h4>
+                </div>
+                <p><strong>Impact:</strong> Immediate credential theft, unauthorized API access, or data breaches if pushed to version control.</p>
+                <p class="action"><strong>Priority Action:</strong> Revoke exposed credentials immediately and migrate to environment variables or secret vaults.</p>
+            </div>
+            
+            <div class="insight-card high">
+                <div class="insight-header">
+                    <span class="badge high">HIGH</span>
+                    <h4>Dangerous Code/Command Injection Vectors (2 points)</h4>
+                </div>
+                <p><strong>Impact:</strong> Potential remote code execution (RCE) or arbitrary database manipulation via unsanitized user inputs.</p>
+                <p class="action"><strong>Priority Action:</strong> Refactor dynamic eval/exec and raw SQL string queries to use parameterized prepared statements.</p>
+            </div>
+            
+            <div class="insight-card high">
+                <div class="insight-header">
+                    <span class="badge high">HIGH</span>
+                    <h4>Fault Tolerance Blindspots: 1 Silent Error Catchers</h4>
+                </div>
+                <p><strong>Impact:</strong> Runtime exceptions are silently discarded with &#x27;pass&#x27; or empty handlers, making bug diagnosis impossible in production.</p>
+                <p class="action"><strong>Priority Action:</strong> Introduce proper structured logging (e.g. logger.exception) and explicit error recovery mechanisms.</p>
+            </div>
+            
+            <div class="insight-card medium">
+                <div class="insight-header">
+                    <span class="badge medium">MEDIUM</span>
+                    <h4>AI Codebase Slop: 9 Dead Imports, Chat Artifacts &amp; Unfinished Placeholders</h4>
+                </div>
+                <p><strong>Impact:</strong> Bloated codebase, increased bundle/image sizes, hallucinated dependencies, and developer confusion.</p>
+                <p class="action"><strong>Priority Action:</strong> Run &#x27;antislop fix&#x27; to prune dead imports, clean up AI conversational prompts, and address remaining TODO stubs.</p>
+            </div>
+            
+        </div>
+
+        <div class="section-title">
+            <span>Detected Findings (23)</span>
+        </div>
+
+        <div class="controls">
+            <button class="filter-btn active" onclick="filterIssues('ALL')">All (23)</button>
+            <button class="filter-btn" onclick="filterIssues('SECURITY')">🛡️ Security (10)</button>
+            <button class="filter-btn" onclick="filterIssues('SLOP')">🧹 AI Slop (9)</button>
+            <button class="filter-btn" onclick="filterIssues('GAPS')">🔍 Gaps (4)</button>
+            <button class="filter-btn" onclick="filterIssues('CRITICAL')">🚨 Critical (3)</button>
+        </div>
+
+        <div id="issues-container">
+            
+            <div class="issue-card critical" data-category="SECURITY" data-severity="CRITICAL">
+                <div class="card-header">
+                    <span class="badge critical">CRITICAL</span>
+                    <span class="badge category">SECURITY</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SEC-001</span>
+                    <span class="file-loc">bad_service.py:8</span>
+                </div>
+                <h3>OpenAI / LLM API Key Exposed</h3>
+                <p class="desc">Exposed secret token detected on line 8. Do not commit credentials.</p>
+                <pre><code>OPENAI_API_KEY = &quot;sk-p************************************3489&quot;</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Move secret to an environment variable or secret manager (e.g., os.getenv(&#x27;API_KEY&#x27;)).
+                </div>
+            </div>
+            
+            <div class="issue-card high" data-category="SECURITY" data-severity="HIGH">
+                <div class="card-header">
+                    <span class="badge high">HIGH</span>
+                    <span class="badge category">SECURITY</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SEC-006</span>
+                    <span class="file-loc">bad_service.py:8</span>
+                </div>
+                <h3>Generic Leaked API Secret / Password Variable</h3>
+                <p class="desc">Exposed secret token detected on line 8. Do not commit credentials.</p>
+                <pre><code>OPENAI_API_************************************************489&quot;</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Move secret to an environment variable or secret manager (e.g., os.getenv(&#x27;API_KEY&#x27;)).
+                </div>
+            </div>
+            
+            <div class="issue-card critical" data-category="SECURITY" data-severity="CRITICAL">
+                <div class="card-header">
+                    <span class="badge critical">CRITICAL</span>
+                    <span class="badge category">SECURITY</span>
+                    
+                    <span class="rule-id">SEC-020</span>
+                    <span class="file-loc">bad_service.py:12</span>
+                </div>
+                <h3>Arbitrary Dynamic Code Execution (eval/exec)</h3>
+                <p class="desc">Potentially insecure execution pattern found: eval(</p>
+                <pre><code>result = eval(user_query)</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Avoid eval/exec on dynamic inputs; use structured parsers or safe dispatchers.
+                </div>
+            </div>
+            
+            <div class="issue-card medium" data-category="SECURITY" data-severity="MEDIUM">
+                <div class="card-header">
+                    <span class="badge medium">MEDIUM</span>
+                    <span class="badge category">SECURITY</span>
+                    
+                    <span class="rule-id">SEC-026</span>
+                    <span class="file-loc">bad_service.py:31</span>
+                </div>
+                <h3>Weak Cryptographic Algorithm (MD5 / SHA1 for hashing)</h3>
+                <p class="desc">Potentially insecure execution pattern found: hashlib.md5(</p>
+                <pre><code>return hashlib.md5(data.encode()).hexdigest()</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Use SHA-256 or bcrypt/argon2 for password and security sensitive hashing.
+                </div>
+            </div>
+            
+            <div class="issue-card high" data-category="SLOP" data-severity="HIGH">
+                <div class="card-header">
+                    <span class="badge high">HIGH</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SLOP-001</span>
+                    <span class="file-loc">bad_service.py:1</span>
+                </div>
+                <h3>AI Assistant Chat Artifact Pasted in Code</h3>
+                <p class="desc">Found chat preamble or conversational text accidentally pasted from an AI assistant.</p>
+                <pre><code># Certainly! Here is the python implementation:</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Delete conversational AI artifacts and Markdown code fence markers.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SLOP-010</span>
+                    <span class="file-loc">bad_service.py:2</span>
+                </div>
+                <h3>Unused / Ghost Import &#x27;os&#x27;</h3>
+                <p class="desc">Import &#x27;os&#x27; is loaded but never utilized in this module. Common in AI-generated files.</p>
+                <pre><code>import/from ... os</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove the unused import &#x27;os&#x27;.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SLOP-010</span>
+                    <span class="file-loc">bad_service.py:3</span>
+                </div>
+                <h3>Unused / Ghost Import &#x27;sys&#x27;</h3>
+                <p class="desc">Import &#x27;sys&#x27; is loaded but never utilized in this module. Common in AI-generated files.</p>
+                <pre><code>import/from ... sys</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove the unused import &#x27;sys&#x27;.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SLOP-010</span>
+                    <span class="file-loc">bad_service.py:4</span>
+                </div>
+                <h3>Unused / Ghost Import &#x27;math&#x27;</h3>
+                <p class="desc">Import &#x27;math&#x27; is loaded but never utilized in this module. Common in AI-generated files.</p>
+                <pre><code>import/from ... math</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove the unused import &#x27;math&#x27;.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SLOP-010</span>
+                    <span class="file-loc">bad_service.py:5</span>
+                </div>
+                <h3>Unused / Ghost Import &#x27;hashlib&#x27;</h3>
+                <p class="desc">Import &#x27;hashlib&#x27; is loaded but never utilized in this module. Common in AI-generated files.</p>
+                <pre><code>import/from ... hashlib</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove the unused import &#x27;hashlib&#x27;.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    
+                    <span class="rule-id">SLOP-012</span>
+                    <span class="file-loc">bad_service.py:33</span>
+                </div>
+                <h3>Tautological Identity Wrapper &#x27;identity_wrapper&#x27;</h3>
+                <p class="desc">Function &#x27;identity_wrapper&#x27; simply returns its single argument untouched with no processing.</p>
+                <pre><code>def identity_wrapper(item): return item</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove unnecessary identity wrapper.
+                </div>
+            </div>
+            
+            <div class="issue-card medium" data-category="GAPS" data-severity="MEDIUM">
+                <div class="card-header">
+                    <span class="badge medium">MEDIUM</span>
+                    <span class="badge category">GAPS</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">GAP-020</span>
+                    <span class="file-loc">bad_service.py:17</span>
+                </div>
+                <h3>Unmanaged File Descriptor (Missing &#x27;with open(...)&#x27;)</h3>
+                <p class="desc">File opened directly via assignment without context manager. May cause file descriptor leaks.</p>
+                <pre><code>f = open(f&#x27;/tmp/user_{user_id}.json&#x27;, &#x27;r&#x27;)</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Use context manager: &#x27;with open(...) as f:&#x27; to guarantee file closure.
+                </div>
+            </div>
+            
+            <div class="issue-card high" data-category="GAPS" data-severity="HIGH">
+                <div class="card-header">
+                    <span class="badge high">HIGH</span>
+                    <span class="badge category">GAPS</span>
+                    
+                    <span class="rule-id">GAP-030</span>
+                    <span class="file-loc">bad_service.py:39</span>
+                </div>
+                <h3>Unimplemented Code Stub (raise NotImplementedError)</h3>
+                <p class="desc">Production code execution will crash at runtime due to incomplete stub.</p>
+                <pre><code>raise NotImplementedError(...)</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Complete implementation or supply default fallback behavior.
+                </div>
+            </div>
+            
+            <div class="issue-card high" data-category="GAPS" data-severity="HIGH">
+                <div class="card-header">
+                    <span class="badge high">HIGH</span>
+                    <span class="badge category">GAPS</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">GAP-010</span>
+                    <span class="file-loc">bad_service.py:25</span>
+                </div>
+                <h3>Silent Exception Swallowing (&#x27;except Exception: pass&#x27;)</h3>
+                <p class="desc">Exceptions are silently ignored with pass. Errors and failures will be masked.</p>
+                <pre><code>except Exception: pass</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Log the exception with logging.exception() or handle the specific failure case.
+                </div>
+            </div>
+            
+            <div class="issue-card high" data-category="SECURITY" data-severity="HIGH">
+                <div class="card-header">
+                    <span class="badge high">HIGH</span>
+                    <span class="badge category">SECURITY</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SEC-005</span>
+                    <span class="file-loc">config.yaml:7</span>
+                </div>
+                <h3>Hardcoded Database Connection String with Credentials</h3>
+                <p class="desc">Exposed secret token detected on line 7. Do not commit credentials.</p>
+                <pre><code>- DATABASE_URL=post****************************************rnal:5432/production</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Move secret to an environment variable or secret manager (e.g., os.getenv(&#x27;API_KEY&#x27;)).
+                </div>
+            </div>
+            
+            <div class="issue-card high" data-category="SECURITY" data-severity="HIGH">
+                <div class="card-header">
+                    <span class="badge high">HIGH</span>
+                    <span class="badge category">SECURITY</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">CONF-001</span>
+                    <span class="file-loc">config.yaml:5</span>
+                </div>
+                <h3>Excessive Privilege Granted in Configuration</h3>
+                <p class="desc">Container runs in privileged mode, disabling host isolation and container security profiles.</p>
+                <pre><code>privileged: true</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove &#x27;privileged: true&#x27; and grant only specific Linux capabilities if required.
+                </div>
+            </div>
+            
+            <div class="issue-card medium" data-category="SECURITY" data-severity="MEDIUM">
+                <div class="card-header">
+                    <span class="badge medium">MEDIUM</span>
+                    <span class="badge category">SECURITY</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">CONF-002</span>
+                    <span class="file-loc">config.yaml:8</span>
+                </div>
+                <h3>Insecure Plaintext HTTP URL in Configuration</h3>
+                <p class="desc">Plaintext HTTP protocol transmits unencrypted credentials and data over network.</p>
+                <pre><code>- EXTERNAL_API=http://unencrypted-api.example.com/v1</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Enforce HTTPS URL schema for remote services.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="GAPS" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">GAPS</span>
+                    
+                    <span class="rule-id">DOCKER-001</span>
+                    <span class="file-loc">Dockerfile:1</span>
+                </div>
+                <h3>Unpinned / Floating Docker Base Image Tag</h3>
+                <p class="desc">Using &#x27;:latest&#x27; or unpinned tag for base image &#x27;python&#x27; makes builds non-reproducible.</p>
+                <pre><code>FROM python:latest</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Pin base image to an explicit version or digest (e.g. node:20-alpine or python:3.11-slim).
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">DOCKER-002</span>
+                    <span class="file-loc">Dockerfile:6</span>
+                </div>
+                <h3>Docker Image Bloat / Slop (Uncleaned apt cache)</h3>
+                <p class="desc">Package installation leaves package manager lists in image layers, inflating image size.</p>
+                <pre><code>RUN apt-get update &amp;&amp; apt-get install -y curl gcc</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Chain with &#x27;&amp;&amp; rm -rf /var/lib/apt/lists/*&#x27; in the same RUN layer.
+                </div>
+            </div>
+            
+            <div class="issue-card medium" data-category="SECURITY" data-severity="MEDIUM">
+                <div class="card-header">
+                    <span class="badge medium">MEDIUM</span>
+                    <span class="badge category">SECURITY</span>
+                    
+                    <span class="rule-id">DOCKER-003</span>
+                    <span class="file-loc">Dockerfile:1</span>
+                </div>
+                <h3>Container Defaults to Root User Execution</h3>
+                <p class="desc">No &#x27;USER&#x27; instruction specified. Container will execute commands with full root privileges.</p>
+                <pre><code>Dockerfile lacks non-root USER instruction</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Add &#x27;USER nonroot&#x27; or create a dedicated service account in the Dockerfile.
+                </div>
+            </div>
+            
+            <div class="issue-card critical" data-category="SECURITY" data-severity="CRITICAL">
+                <div class="card-header">
+                    <span class="badge critical">CRITICAL</span>
+                    <span class="badge category">SECURITY</span>
+                    
+                    <span class="rule-id">SEC-020</span>
+                    <span class="file-loc">legacy_api.js:6</span>
+                </div>
+                <h3>Arbitrary Dynamic Code Execution (eval/exec)</h3>
+                <p class="desc">Potentially insecure execution pattern found: exec(</p>
+                <pre><code>child_process.exec(`ping -c 1 ${cmdInput}`, (error, stdout) =&gt; {</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Avoid eval/exec on dynamic inputs; use structured parsers or safe dispatchers.
+                </div>
+            </div>
+            
+            <div class="issue-card high" data-category="SECURITY" data-severity="HIGH">
+                <div class="card-header">
+                    <span class="badge high">HIGH</span>
+                    <span class="badge category">SECURITY</span>
+                    
+                    <span class="rule-id">SEC-027</span>
+                    <span class="file-loc">legacy_api.js:6</span>
+                </div>
+                <h3>Node.js Unsafe child_process.exec</h3>
+                <p class="desc">Potentially insecure execution pattern found: child_process.exec(`ping -c 1 ${</p>
+                <pre><code>child_process.exec(`ping -c 1 ${cmdInput}`, (error, stdout) =&gt; {</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Use child_process.execFile or execSync with array arguments instead of template literals in exec.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SLOP-020</span>
+                    <span class="file-loc">legacy_api.js:1</span>
+                </div>
+                <h3>Unused JS/TS Import &#x27;unusedHelper&#x27;</h3>
+                <p class="desc">Import &#x27;unusedHelper&#x27; is declared on line 1 but never referenced anywhere in this module.</p>
+                <pre><code>import { unusedHelper, deadService, activeRoute } from &#x27;./utils&#x27;;</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove &#x27;unusedHelper&#x27; from the import statement.
+                </div>
+            </div>
+            
+            <div class="issue-card low" data-category="SLOP" data-severity="LOW">
+                <div class="card-header">
+                    <span class="badge low">LOW</span>
+                    <span class="badge category">SLOP</span>
+                    <span class="badge fixable">⚡ Auto-Fixable</span>
+                    <span class="rule-id">SLOP-020</span>
+                    <span class="file-loc">legacy_api.js:1</span>
+                </div>
+                <h3>Unused JS/TS Import &#x27;deadService&#x27;</h3>
+                <p class="desc">Import &#x27;deadService&#x27; is declared on line 1 but never referenced anywhere in this module.</p>
+                <pre><code>import { unusedHelper, deadService, activeRoute } from &#x27;./utils&#x27;;</code></pre>
+                <div class="fix-box">
+                    <strong>Recommended Fix:</strong> Remove &#x27;deadService&#x27; from the import statement.
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        function filterIssues(tag) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            const cards = document.querySelectorAll('.issue-card');
+            cards.forEach(card => {
+                if (tag === 'ALL') {
+                    card.style.display = 'block';
+                } else if (tag === 'CRITICAL') {
+                    card.style.display = card.getAttribute('data-severity') === 'CRITICAL' ? 'block' : 'none';
+                } else {
+                    card.style.display = card.getAttribute('data-category') === tag ? 'block' : 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

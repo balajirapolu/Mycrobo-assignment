@@ -1,0 +1,46 @@
+{
+  "name": "slop-sentinel",
+  "version": "1.0.0",
+  "title": "SlopSentinel: Architecture-Agnostic Anti-Slop, Security & Code Gap Triage Agent",
+  "description": "An architecture-agnostic AI agent that autonomously scans, triages, and remediates security vulnerabilities, AI slop (phantom imports, chat artifacts, boilerplate debt), and coding gaps (silent exceptions, resource leaks) across polyglot repositories.",
+  "track": "AI triage",
+  "language": "python",
+  "entrypoint": "main.py",
+  "commands": {
+    "build": "python -m pip install -e .",
+    "test": "python -m unittest discover tests",
+    "run": "python main.py scan .",
+    "scan": "python main.py scan .",
+    "triage": "python main.py triage .",
+    "fix": "python main.py fix . --dry-run",
+    "dashboard": "python main.py dashboard . --out slop-dashboard.html"
+  },
+  "metadata": {
+    "supported_languages": [
+      "python",
+      "javascript",
+      "typescript",
+      "go",
+      "rust",
+      "java",
+      "dockerfile",
+      "yaml",
+      "json",
+      "shell"
+    ],
+    "capabilities": [
+      "secret_entropy_scanning",
+      "cve_vulnerability_detection",
+      "ai_slop_and_phantom_imports",
+      "conversational_artifact_removal",
+      "silent_exception_triage",
+      "unmanaged_resource_leak_detection",
+      "sarif_v2_export",
+      "interactive_html_dashboard",
+      "autonomous_diff_remediation"
+    ],
+    "author": "Balaji Rapolu",
+    "github_handle": "balajirapolu",
+    "license": "MIT"
+  }
+}

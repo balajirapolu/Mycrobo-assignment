@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slop-sentinel"
+version = "1.0.0"
+authors = [
+  { name="Balaji Rapolu", email="balaji@example.com" },
+]
+description = "Architecture-Agnostic Anti-Slop, Security & Code Gap Triage Agent"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.scripts]
+antislop = "antislop.cli:main"
+slop-sentinel = "antislop.cli:main"

@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  app:
+    image: mycrobo/app:latest
+    privileged: true
+    environment:
+      - DATABASE_URL=postgres://admin:SuperSecretPass123!@db.internal:5432/production
+      - EXTERNAL_API=http://unencrypted-api.example.com/v1
+    ports:
+      - "8080:8080"
