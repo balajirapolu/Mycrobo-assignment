@@ -121,6 +121,67 @@ class AnalyzerIntegrationTests(unittest.TestCase):
         issues = SlopAnalyzer().analyze("app.py", "import math\ndef foo(): return 1\n", "python")
         self.assertGreater(len(issues), 0)
 
+    def test_no_false_alarm_on_all_export(self):
+        from antislop.analyzers.slop import SlopAnalyzer
+        code = """import os
+__all__ = ['os']
+"""
+        issues = SlopAnalyzer().analyze("module.py", code, "python")
+        unused = [i for i in issues if i.rule_id == "SLOP-010"]
+        self.assertEqual(len(unused), 0)
+
+    def test_polyglot_go_detection(self):
+        from antislop.analyzers.security import SecurityAnalyzer
+        from antislop.analyzers.gaps import GapAnalyzer
+        from antislop.analyzers.slop import SlopAnalyzer
+        go_code = """package main
+import "fmt"
+func run() {
+    _ = err
+    exec.Command("sh", "-c", input)
+}
+"""
+        sec = SecurityAnalyzer().analyze("main.go", go_code, "go")
+        gaps = GapAnalyzer().analyze("main.go", go_code, "go")
+        slop = SlopAnalyzer().analyze("main.go", go_code, "go")
+        self.assertTrue(any(i.rule_id == "SEC-030" for i in sec))
+        self.assertTrue(any(i.rule_id == "GAP-011" for i in gaps))
+        self.assertTrue(any(i.rule_id == "SLOP-030" for i in slop))
+
+    def test_polyglot_php_detection(self):
+        from antislop.analyzers.security import SecurityAnalyzer
+        from antislop.analyzers.gaps import GapAnalyzer
+        from antislop.analyzers.slop import SlopAnalyzer
+        php_code = """<?php
+use App\\Services\\UnusedService;
+try {
+    eval($_POST['code']);
+} catch (Exception $e) {}
+"""
+        sec = SecurityAnalyzer().analyze("index.php", php_code, "php")
+        gaps = GapAnalyzer().analyze("index.php", php_code, "php")
+        slop = SlopAnalyzer().analyze("index.php", php_code, "php")
+        self.assertTrue(any(i.rule_id == "SEC-020" or i.rule_id == "SEC-040" for i in sec))
+        self.assertTrue(any(i.rule_id == "GAP-014" for i in gaps))
+        self.assertTrue(any(i.rule_id == "SLOP-040" for i in slop))
+
+    def test_polyglot_ruby_detection(self):
+        from antislop.analyzers.security import SecurityAnalyzer
+        from antislop.analyzers.gaps import GapAnalyzer
+        from antislop.analyzers.slop import SlopAnalyzer
+        ruby_code = """require 'unused_gem'
+def execute(cmd)
+    system("ping -c 1 #{cmd}")
+    rescue nil
+end
+"""
+        sec = SecurityAnalyzer().analyze("app.rb", ruby_code, "ruby")
+        gaps = GapAnalyzer().analyze("app.rb", ruby_code, "ruby")
+        slop = SlopAnalyzer().analyze("app.rb", ruby_code, "ruby")
+        self.assertTrue(any(i.rule_id == "SEC-050" for i in sec))
+        self.assertTrue(any(i.rule_id == "GAP-018" for i in gaps))
+        self.assertTrue(any(i.rule_id == "SLOP-050" for i in slop))
+
 
 if __name__ == "__main__":
     unittest.main()

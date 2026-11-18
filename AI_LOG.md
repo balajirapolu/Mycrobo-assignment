@@ -85,6 +85,7 @@
 | **17** | **Dependency Lock & Hygiene** | Pinned dependencies and generated `requirements.lock` with zero osv-scanner vulnerabilities. | Dependency hygiene resolved |
 | **18** | **CI Workflow** | Added `.github/workflows/ci.yml` running automated unit tests on GitHub Actions. | CI pipeline verified |
 | **19** | **Domain Classification Upgrade** | Expanded `classify()` categories to cover billing, technical, account, security, slop, and urgency. | 26/26 tests passing |
+| **20** | **Polyglot & False-Positive Rectification** | Added full support for Go, PHP, Ruby, and eliminated false-positive unused import alarms across `__all__` and re-exports. | 30/30 tests passing |
 
 ---
 

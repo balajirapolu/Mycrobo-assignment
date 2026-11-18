@@ -75,11 +75,17 @@ class SlopAnalyzer:
                         auto_fixable=False,
                     ))
 
-        # Deep AST Analysis for Python
+        # Language-specific import & slop analysis
         if language == "python":
             self._analyze_python_ast(file_path, content, issues)
         elif language in ("javascript", "typescript"):
             self._analyze_js_slop(file_path, content, issues)
+        elif language == "go":
+            self._analyze_go_slop(file_path, content, issues)
+        elif language == "php":
+            self._analyze_php_slop(file_path, content, issues)
+        elif language == "ruby":
+            self._analyze_ruby_slop(file_path, content, issues)
 
         return issues
 
@@ -88,53 +94,57 @@ class SlopAnalyzer:
         try:
             tree = ast.parse(content)
         except SyntaxError:
-            # If the file has a syntax error, we don't crash; the GapAnalyzer will flag it
             return
 
-        # 1. Detect Unused Imports & Ghost Imports
-        imported_symbols: dict[str, tuple[str, int]] = {}  # symbol -> (module_or_alias, line_number)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    name = alias.asname or alias.name
-                    imported_symbols[name] = (alias.name, node.lineno)
-            elif isinstance(node, ast.ImportFrom):
-                for alias in node.names:
-                    name = alias.asname or alias.name
-                    imported_symbols[name] = (alias.name, node.lineno)
+        # Do not flag unused imports in __init__.py or test files (re-exports / discovery)
+        is_reexport_file = file_path.endswith("__init__.py") or "test" in file_path.lower()
 
-        # Collect all referenced identifiers
-        referenced_identifiers: Set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Name):
-                referenced_identifiers.add(node.id)
-            elif isinstance(node, ast.Attribute):
-                referenced_identifiers.add(node.attr)
+        # 1. Detect Unused Imports without false positives
+        if not is_reexport_file:
+            imported_symbols: dict[str, tuple[str, int]] = {}
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        name = alias.asname or alias.name
+                        imported_symbols[name] = (alias.name, node.lineno)
+                elif isinstance(node, ast.ImportFrom):
+                    for alias in node.names:
+                        name = alias.asname or alias.name
+                        imported_symbols[name] = (alias.name, node.lineno)
 
-        # Compare imported symbols against references
-        # Keep __all__ references in mind
-        for sym, (orig_name, lineno) in imported_symbols.items():
-            if sym.startswith("__"):
-                continue
-            # If symbol is only referenced on its import line (count <= 1 in entire AST names)
-            occurrences = sum(1 for node in ast.walk(tree) if isinstance(node, ast.Name) and node.id == sym)
-            if occurrences <= 1:
-                # Unused import found
-                issues.append(Issue(
-                    id=f"SLOP-010-{lineno}",
-                    file_path=file_path,
-                    line_number=lineno,
-                    rule_id="SLOP-010",
-                    title=f"Unused / Ghost Import '{sym}'",
-                    description=f"Import '{orig_name}' is loaded but never utilized in this module. Common in AI-generated files.",
-                    severity=Severity.LOW,
-                    category=Category.SLOP,
-                    code_snippet=f"import/from ... {sym}",
-                    suggested_fix=f"Remove the unused import '{sym}'.",
-                    confidence=0.95,
-                    auto_fixable=True,
-                    metadata={"symbol": sym, "line": lineno}
-                ))
+            # Check explicit __all__ exports
+            all_exports = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name) and target.id == "__all__":
+                            if isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
+                                for elt in node.value.elts:
+                                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                        all_exports.add(elt.value)
+
+            for sym, (orig_name, lineno) in imported_symbols.items():
+                if sym.startswith("__") or sym in all_exports:
+                    continue
+                # Verify total occurrences across the entire file content
+                # If it appears more than once, it is used in docstrings, annotations, or expressions
+                occurrences = len(re.findall(rf"\b{re.escape(sym)}\b", content))
+                if occurrences <= 1:
+                    issues.append(Issue(
+                        id=f"SLOP-010-{lineno}",
+                        file_path=file_path,
+                        line_number=lineno,
+                        rule_id="SLOP-010",
+                        title=f"Unused / Ghost Import '{sym}'",
+                        description=f"Import '{orig_name}' is loaded but never utilized in this module. Common in AI-generated files.",
+                        severity=Severity.LOW,
+                        category=Category.SLOP,
+                        code_snippet=f"import/from ... {sym}",
+                        suggested_fix=f"Remove the unused import '{sym}'.",
+                        confidence=0.95,
+                        auto_fixable=True,
+                        metadata={"symbol": sym, "line": lineno}
+                    ))
 
         # 2. Detect Empty / Stubbed Functions (Boilerplate Slop)
         for node in ast.walk(tree):
@@ -218,3 +228,79 @@ class SlopAnalyzer:
                             auto_fixable=True,
                             metadata={"symbol": sym}
                         ))
+
+    def _analyze_go_slop(self, file_path: str, content: str, issues: List[Issue]):
+        """Detects unused imports and stubs in Go files."""
+        # Find all Go package imports
+        import_blocks = re.findall(r"""import\s*\((.*?)\)""", content, re.DOTALL)
+        single_imports = re.findall(r"""import\s+["']([^"']+)["']""", content)
+        pkgs = list(single_imports)
+        for block in import_blocks:
+            pkgs.extend(re.findall(r"""["']([^"']+)["']""", block))
+
+        for pkg in pkgs:
+            pkg_name = pkg.split("/")[-1]
+            if pkg_name in ("C", "_", ""):
+                continue
+            if len(re.findall(rf"\b{re.escape(pkg_name)}\b", content)) <= 1:
+                issues.append(Issue(
+                    id="SLOP-030-1",
+                    file_path=file_path,
+                    line_number=1,
+                    rule_id="SLOP-030",
+                    title=f"Unused Go Package Import '{pkg}'",
+                    description=f"Package '{pkg}' is imported but not referenced.",
+                    severity=Severity.LOW,
+                    category=Category.SLOP,
+                    code_snippet=f'import "{pkg}"',
+                    suggested_fix=f"Remove unused import '{pkg}'.",
+                    confidence=0.92,
+                    auto_fixable=True
+                ))
+
+    def _analyze_php_slop(self, file_path: str, content: str, issues: List[Issue]):
+        """Detects unused use declarations and stubs in PHP files."""
+        use_matches = re.finditer(r"""(?i)^\s*use\s+([\\a-zA-Z0-9_]+(?:\s+as\s+([a-zA-Z0-9_]+))?)\s*;""", content, re.MULTILINE)
+        for match in use_matches:
+            full = match.group(1)
+            alias = match.group(2)
+            sym = alias if alias else full.split("\\")[-1]
+            if len(re.findall(rf"\b{re.escape(sym)}\b", content)) <= 1:
+                line_no = content[:match.start()].count("\n") + 1
+                issues.append(Issue(
+                    id=f"SLOP-040-{line_no}",
+                    file_path=file_path,
+                    line_number=line_no,
+                    rule_id="SLOP-040",
+                    title=f"Unused PHP Class Import 'use {sym}'",
+                    description=f"PHP use declaration '{full}' is never referenced in this script.",
+                    severity=Severity.LOW,
+                    category=Category.SLOP,
+                    code_snippet=f"use {full};",
+                    suggested_fix=f"Remove unused 'use {full};' statement.",
+                    confidence=0.92,
+                    auto_fixable=True
+                ))
+
+    def _analyze_ruby_slop(self, file_path: str, content: str, issues: List[Issue]):
+        """Detects unused requires in Ruby files."""
+        req_matches = re.finditer(r"""^\s*require(?:_relative)?\s+['"]([^'"]+)['"]""", content, re.MULTILINE)
+        for match in req_matches:
+            pkg = match.group(1).split("/")[-1].replace(".rb", "")
+            const_name = "".join(w.capitalize() for w in pkg.split("_"))
+            if len(re.findall(rf"\b(?:{re.escape(pkg)}|{re.escape(const_name)})\b", content)) <= 1:
+                line_no = content[:match.start()].count("\n") + 1
+                issues.append(Issue(
+                    id=f"SLOP-050-{line_no}",
+                    file_path=file_path,
+                    line_number=line_no,
+                    rule_id="SLOP-050",
+                    title=f"Unused Ruby Dependency 'require \"{pkg}\"'",
+                    description=f"Ruby requirement '{pkg}' is never referenced.",
+                    severity=Severity.LOW,
+                    category=Category.SLOP,
+                    code_snippet=f"require '{pkg}'",
+                    suggested_fix=f"Remove unused 'require \"{pkg}\"'.",
+                    confidence=0.90,
+                    auto_fixable=True
+                ))

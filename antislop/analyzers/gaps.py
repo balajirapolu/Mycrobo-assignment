@@ -25,6 +25,50 @@ POLYGLOT_GAP_PATTERNS = [
     ("GAP-004", "Hardcoded Magic Return Value (-1 or null fallback)", Severity.LOW,
      re.compile(r"""return\s+(?:-999|-1|null|undefined)\s*;\s*\/\/\s*fallback"""),
      "Use explicit Optional / Result types or raise domain-specific errors."),
+
+    # Go Gap Rules
+    ("GAP-011", "Go Ignored Error Return (_ = err)", Severity.HIGH,
+     re.compile(r"""(?<!\w)_\s*=\s*err\b"""),
+     "Handle the error returned by the function; do not explicitly discard it with '_'."),
+
+    ("GAP-012", "Go Silent Error Block (if err != nil {})", Severity.HIGH,
+     re.compile(r"""if\s+err\s*!=\s*nil\s*\{\s*\}"""),
+     "Add error handling, logging, or return the error from the function."),
+
+    ("GAP-013", "Go Unimplemented Stub Panic", Severity.HIGH,
+     re.compile(r"""panic\s*\(\s*['\"](?:not implemented|TODO|stub)['\"]\s*\)"""),
+     "Implement the required logic before shipping to production."),
+
+    # PHP Gap Rules
+    ("GAP-014", "PHP Silent Exception Swallowing (empty catch)", Severity.HIGH,
+     re.compile(r"""catch\s*\(\s*(?:\\?Exception|\\?Throwable)\s*\$[a-zA-Z0-9_]+\s*\)\s*\{\s*\}"""),
+     "Log or handle caught exceptions in PHP catch block."),
+
+    ("GAP-015", "PHP Error Suppression Operator (@)", Severity.MEDIUM,
+     re.compile(r"""(?<!\w)@(?:\$?[a-zA-Z0-9_]+)\s*\("""),
+     "Avoid using the '@' operator to suppress runtime warnings and errors."),
+
+    ("GAP-016", "PHP Incomplete Stub Exception", Severity.HIGH,
+     re.compile(r"""throw\s+new\s+\\?(?:Exception|BadMethodCallException)\s*\(\s*['\"](?:Not implemented|TODO|stub)['\"]"""),
+     "Complete business logic implementation."),
+
+    # Ruby Gap Rules
+    ("GAP-017", "Ruby Silent Exception Rescue", Severity.HIGH,
+     re.compile(r"""rescue\s*(?:=>\s*[a-zA-Z0-9_]+)?\s*(?:#.*)?\n\s*end"""),
+     "Log or rethrow rescued exceptions in Ruby."),
+
+    ("GAP-018", "Ruby Silent 'rescue nil' Suppression", Severity.HIGH,
+     re.compile(r"""(?<!\w)rescue\s+nil\b"""),
+     "Handle specific expected exceptions rather than masking everything with 'rescue nil'."),
+
+    ("GAP-019", "Ruby Incomplete Stub (raise NotImplementedError)", Severity.HIGH,
+     re.compile(r"""raise\s+NotImplementedError\b"""),
+     "Implement the required method logic."),
+
+    # Rust Gap Rules
+    ("GAP-021", "Rust Unimplemented Code Stub (todo! / unimplemented!)", Severity.HIGH,
+     re.compile(r"""(?<!\w)(?:todo!|unimplemented!)\s*\("""),
+     "Implement the required function or branch."),
 ]
 
 

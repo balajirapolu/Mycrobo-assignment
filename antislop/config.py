@@ -31,6 +31,7 @@ SUPPORTED_EXTENSIONS = {
     # Python
     ".py": "python",
     ".pyi": "python",
+    ".pyw": "python",
     # JavaScript & TypeScript
     ".js": "javascript",
     ".jsx": "javascript",
@@ -38,13 +39,28 @@ SUPPORTED_EXTENSIONS = {
     ".cjs": "javascript",
     ".ts": "typescript",
     ".tsx": "typescript",
-    # Systems & Compiled
+    # Go
     ".go": "go",
+    # PHP
+    ".php": "php",
+    ".phtml": "php",
+    ".php3": "php",
+    ".php4": "php",
+    ".php5": "php",
+    # Ruby
+    ".rb": "ruby",
+    ".rake": "ruby",
+    ".gemspec": "ruby",
+    ".ru": "ruby",
+    # Systems & Compiled
     ".rs": "rust",
     ".java": "java",
+    ".kt": "kotlin",
+    ".scala": "scala",
     ".c": "c",
     ".cpp": "cpp",
     ".cc": "cpp",
+    ".cxx": "cpp",
     ".h": "c_header",
     ".hpp": "cpp_header",
     ".cs": "csharp",
@@ -54,8 +70,11 @@ SUPPORTED_EXTENSIONS = {
     ".yml": "yaml",
     ".toml": "toml",
     ".env": "env",
+    ".ini": "config",
+    ".xml": "xml",
     ".sh": "shell",
     ".bash": "shell",
+    ".zsh": "shell",
     ".ps1": "powershell",
     "dockerfile": "dockerfile"
 }

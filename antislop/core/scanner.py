@@ -130,6 +130,30 @@ class RepositoryScanner:
         name_lower = path.name.lower()
         if "dockerfile" in name_lower:
             return "dockerfile"
+        if name_lower in ("gemfile", "rakefile"):
+            return "ruby"
 
         suffix = path.suffix.lower()
-        return SUPPORTED_EXTENSIONS.get(suffix, "")
+        if suffix in SUPPORTED_EXTENSIONS:
+            return SUPPORTED_EXTENSIONS[suffix]
+
+        # Check shebang line if no known extension
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                first_line = f.readline()
+                if first_line.startswith("#!"):
+                    first_lower = first_line.lower()
+                    if "python" in first_lower:
+                        return "python"
+                    if "node" in first_lower or "js" in first_lower:
+                        return "javascript"
+                    if "php" in first_lower:
+                        return "php"
+                    if "ruby" in first_lower:
+                        return "ruby"
+                    if "sh" in first_lower or "bash" in first_lower:
+                        return "shell"
+        except Exception:
+            pass
+
+        return "generic"

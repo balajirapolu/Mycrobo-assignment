@@ -67,6 +67,66 @@ VULNERABILITY_PATTERNS = [
     ("SEC-027", "Node.js Unsafe child_process.exec", Severity.HIGH,
      re.compile(r"""child_process\.exec\s*\(\s*`[^`]*\${"""),
      "Use child_process.execFile or execSync with array arguments instead of template literals in exec."),
+
+    # Go Security Rules
+    ("SEC-030", "Go Dangerous Shell Command Execution", Severity.HIGH,
+     re.compile(r"""exec\.Command\s*\(\s*['\"](?:sh|bash)['\"]\s*,\s*['\"]-c['\"]"""),
+     "Avoid invoking shell interpreters in exec.Command; execute targeted binary directly."),
+
+    ("SEC-031", "Go Insecure TLS Configuration (InsecureSkipVerify)", Severity.HIGH,
+     re.compile(r"""InsecureSkipVerify\s*:\s*true"""),
+     "Enable TLS verification by removing InsecureSkipVerify: true."),
+
+    ("SEC-032", "Go SQL Injection via String Concatenation/Formatting", Severity.HIGH,
+     re.compile(r"""(?:Query|Exec|QueryRow)\s*\(\s*(?:fmt\.Sprintf|[^,)]*\+)"""),
+     "Use parameterized SQL arguments in Go sql package."),
+
+    # PHP Security Rules
+    ("SEC-040", "PHP Dangerous Command/Code Execution", Severity.CRITICAL,
+     re.compile(r"""(?<!\w)(?:assert|create_function|passthru|shell_exec|proc_open)\s*\("""),
+     "Avoid dynamic code or shell execution functions in PHP."),
+
+    ("SEC-041", "PHP Insecure Object Deserialization", Severity.CRITICAL,
+     re.compile(r"""(?<!\w)unserialize\s*\(\s*\$"""),
+     "Do not deserialize untrusted user inputs with unserialize(); use json_decode()."),
+
+    ("SEC-042", "PHP SQL Injection Vulnerability", Severity.HIGH,
+     re.compile(r"""(?i)(?:mysqli_query|mysql_query|\$pdo->query)\s*\(\s*['\"].*(?:SELECT|INSERT|UPDATE|DELETE).*(?:\$|\$_GET|\$_POST)"""),
+     "Use PDO prepared statements with parameterized inputs."),
+
+    ("SEC-043", "PHP Remote File Inclusion / Path Traversal", Severity.HIGH,
+     re.compile(r"""(?:include|require|include_once|require_once)\s*\(\s*\$_(?:GET|POST|REQUEST)"""),
+     "Do not pass unvalidated user inputs to include/require."),
+
+    ("SEC-044", "PHP Disabled cURL SSL Verification", Severity.HIGH,
+     re.compile(r"""CURLOPT_SSL_VERIFYPEER\s*,\s*(?:false|0)"""),
+     "Enable CURLOPT_SSL_VERIFYPEER to prevent man-in-the-middle attacks."),
+
+    # Ruby Security Rules
+    ("SEC-050", "Ruby Command Injection via String Interpolation", Severity.HIGH,
+     re.compile(r"""(?:system|exec)\s*\([^\)]*#\{|%x\{[^}]*#\{|`[^`]*#\{"""),
+     "Pass command arguments as separate array elements instead of string interpolation."),
+
+    ("SEC-051", "Ruby Insecure Deserialization (Marshal/YAML)", Severity.CRITICAL,
+     re.compile(r"""Marshal\.load\s*\(|YAML\.load\s*\((?!.*safe)"""),
+     "Use YAML.safe_load instead of YAML.load or Marshal.load on untrusted input."),
+
+    ("SEC-052", "Ruby SQL Injection in Active Record", Severity.HIGH,
+     re.compile(r"""\.(?:where|find_by_sql)\s*\(\s*['\"][^'\"]*#\{"""),
+     "Use parameterized ActiveRecord conditions (e.g. where('name = ?', param))."),
+
+    ("SEC-053", "Ruby Insecure SSL Verification", Severity.HIGH,
+     re.compile(r"""OpenSSL::SSL::VERIFY_NONE"""),
+     "Do not disable SSL verification with OpenSSL::SSL::VERIFY_NONE."),
+
+    # Java & C/C++ Security Rules
+    ("SEC-060", "Java Dangerous Runtime.exec Invocation", Severity.HIGH,
+     re.compile(r"""Runtime\.getRuntime\(\)\.exec\s*\("""),
+     "Use ProcessBuilder with explicit tokenized argument lists."),
+
+    ("SEC-061", "C/C++ Insecure Buffer Function", Severity.HIGH,
+     re.compile(r"""(?<!\w)(?:gets|strcpy|strcat|sprintf)\s*\("""),
+     "Replace with bounded alternatives (fgets, strncpy, snprintf)."),
 ]
 
 
